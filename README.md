@@ -35,7 +35,7 @@ claude mcp add definitive-flash -- npx -y @definitive-fi/flash-mcp
 Or install the plugin, which bundles the server plus a trading-workflow skill:
 
 ```
-/plugin marketplace add cstoneham/flash-mcp
+/plugin marketplace add DefinitiveCo/flash-mcp
 /plugin install definitive-flash@flash-mcp
 ```
 

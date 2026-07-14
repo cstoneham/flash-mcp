@@ -1,12 +1,12 @@
 {
   "name": "definitive-flash",
   "description": "Trade on the Definitive Flash API: quote, execute, and manage orders across 12 chains (EVM + Solana) directly from Claude Code.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "Definitive"
   },
   "homepage": "https://flash.definitive.fi/docs",
-  "repository": "https://github.com/cstoneham/flash-mcp",
+  "repository": "https://github.com/DefinitiveCo/flash-mcp",
   "license": "MIT",
   "keywords": ["mcp", "trading", "defi", "solana", "evm", "definitive"],
   "mcpServers": {
