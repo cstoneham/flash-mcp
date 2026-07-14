@@ -9,7 +9,7 @@
       "name": "definitive-flash",
       "source": "./",
       "description": "Trade on the Definitive Flash API: quote, execute, and manage orders across 12 chains (EVM + Solana).",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": { "name": "Definitive" },
       "homepage": "https://flash.definitive.fi/docs",
       "repository": "https://github.com/DefinitiveCo/flash-mcp"
