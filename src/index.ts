@@ -2,6 +2,8 @@
 // Definitive Flash MCP server — lets a trader quote, trade, and manage orders on
 // the Flash API directly from an MCP client. stdio transport.
 
+import { createRequire } from "node:module";
+
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -81,7 +83,9 @@ function tradeRequestFromArgs(a: Record<string, unknown>) {
   };
 }
 
-const server = new McpServer({ name: "definitive-flash", version: "0.1.0" });
+const { version: PKG_VERSION } = createRequire(import.meta.url)("../package.json") as { version: string };
+
+const server = new McpServer({ name: "definitive-flash", version: PKG_VERSION });
 
 /** Register a tool whose handler errors are turned into friendly, non-crashing results. */
 function registerTool(

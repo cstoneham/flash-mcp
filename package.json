@@ -18,7 +18,7 @@
     "dev": "node --import tsx src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "prepare": "tsc"
+    "prepare": "tsc && node -e \"const fs=require('fs');fs.mkdirSync('node_modules/.bin',{recursive:true});try{fs.symlinkSync('../../dist/index.js','node_modules/.bin/flash-mcp')}catch{};fs.chmodSync('dist/index.js',0o755)\""
   },
   "repository": {
     "type": "git",
