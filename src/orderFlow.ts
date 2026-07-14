@@ -3,8 +3,8 @@
 
 import { getChain } from "./chains.js";
 import { FlashClient } from "./flashClient.js";
-import { EvmSigner } from "./signing/evm.js";
-import { SvmSigner } from "./signing/svm.js";
+import { evmAddressFromPrivateKey, EvmSigner } from "./signing/evm.js";
+import { svmAddressFromSecret, SvmSigner } from "./signing/svm.js";
 import {
   TERMINAL_STATUSES,
   type FlashGetOrderResponse,
@@ -31,6 +31,21 @@ export interface PlaceOrderResult {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Serialize order placement per (chain, wallet). Same-wallet transactions are
+// nonce-ordered on-chain anyway; without this, concurrent orders that each need
+// a wrap/approve send would fetch the same nonce and collide. Keyed by chain so
+// the same wallet can still trade on different chains in parallel. A failed
+// order must not block the queue, so the stored tail swallows rejections —
+// callers still see them via the returned promise.
+const walletQueues = new Map<string, Promise<unknown>>();
+
+export function withWalletLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const tail = walletQueues.get(key) ?? Promise.resolve();
+  const run = tail.then(fn);
+  walletQueues.set(key, run.catch(() => {}));
+  return run;
+}
+
 export async function placeOrder(client: FlashClient, input: PlaceOrderInput): Promise<PlaceOrderResult> {
   const chain = getChain(input.targetChain);
   const steps: string[] = [];
@@ -38,10 +53,13 @@ export async function placeOrder(client: FlashClient, input: PlaceOrderInput): P
   // The funder address must be present on the quote for it to return signing payloads.
   const { privateKey, rpcUrl, waitForFill, pollTimeoutSec, ...quoteFields } = input;
 
-  if (chain.kind === "evm") {
-    return placeEvmOrder(client, quoteFields, privateKey, rpcUrl, waitForFill, pollTimeoutSec, steps);
-  }
-  return placeSvmOrder(client, quoteFields, privateKey, rpcUrl, waitForFill, pollTimeoutSec, steps);
+  const funder =
+    chain.kind === "evm" ? evmAddressFromPrivateKey(privateKey) : svmAddressFromSecret(privateKey);
+  return withWalletLock(`${chain.id}:${funder}`, () =>
+    chain.kind === "evm"
+      ? placeEvmOrder(client, quoteFields, privateKey, rpcUrl, waitForFill, pollTimeoutSec, steps)
+      : placeSvmOrder(client, quoteFields, privateKey, rpcUrl, waitForFill, pollTimeoutSec, steps),
+  );
 }
 
 async function placeEvmOrder(

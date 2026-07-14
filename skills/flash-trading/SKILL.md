@@ -23,6 +23,12 @@ The `definitive-flash` MCP server exposes: `flash_setup`, `flash_status`, `flash
    `DEFINITIVE_API_KEY`). The `flash_setup` key parameters exist only as a last-resort fallback.
 3. **Don't retry a failed submit blindly.** Read the error, re-quote, and re-confirm —
    a timeout does not mean the order failed; check `flash_get_order` first.
+4. **One order at a time.** Never issue parallel `flash_submit_order` calls — wait for each
+   to reach a terminal status before submitting the next. For multi-token requests (e.g.
+   "sweep everything to USDC"): fetch balances, quote each token, present the full plan for
+   one confirmation, then execute sequentially, reporting progress as you go. Skip tokens
+   that fail to quote (dust often has no route) and summarize successes and failures at the
+   end. (The server also serializes same-wallet orders per chain as a backstop.)
 
 ## First-run setup
 

@@ -1,6 +1,6 @@
 {
   "name": "@definitive-fi/flash-mcp",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "MCP server for trading on the Definitive Flash API",
   "license": "MIT",
   "type": "module",
