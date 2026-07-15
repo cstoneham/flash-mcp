@@ -1,6 +1,6 @@
 {
   "name": "definitive-flash",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Trade on the Definitive Flash API: quote, execute, and manage orders across 12 chains (EVM + Solana) directly from Codex.",
   "skills": "./skills/",
   "mcpServers": "./.codex-plugin/mcp.json"

@@ -149,5 +149,5 @@ public default.
 - EVM trades may send a one-time ERC-20 approve (and a wrap tx for native-asset trades) before
   signing — your wallet needs a little gas for those.
 - `qty` is the amount being **spent**: in `contraAsset` units for buys, `targetAsset` units for sells.
-- Supported chains: ethereum, optimism, bsc, polygon, base, arbitrum, avalanche, blast, hyperevm,
-  plasma, monad, solana.
+- Supported chains: ethereum, optimism, bsc, polygon, base, arbitrum, avalanche, hyperevm,
+  robinhood, plasma, monad, solana.

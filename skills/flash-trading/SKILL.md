@@ -59,8 +59,8 @@ The `definitive-flash` MCP server exposes: `flash_setup`, `flash_status`, `flash
 - Market orders poll until terminal status by default (`waitForFill`, `pollTimeoutSec`).
 - EVM trades may send a one-time ERC-20 approve (plus a wrap tx for native-asset trades) before
   signing — the wallet needs a little native gas. On Solana, `svmUseNativeSOL: true` wraps SOL.
-- Chains: ethereum, optimism, bsc, polygon, base, arbitrum, avalanche, blast, hyperevm, plasma,
-  monad, solana.
+- Chains: ethereum, optimism, bsc, polygon, base, arbitrum, avalanche, hyperevm, robinhood,
+  plasma, monad, solana.
 
 ## Managing orders
 
