@@ -19,19 +19,26 @@ export interface ChainInfo {
   nativeSymbol: string;
   /** Default public RPC. Overridable per chain via env or per call. */
   defaultRpc: string;
+  /**
+   * Blockscout API base (no trailing slash). When set, `flash_balances` can
+   * auto-discover the wallet's ERC-20 holdings instead of requiring explicit
+   * token addresses. Discovery is best-effort — a failure falls back to
+   * native-only, and every balance is still read live on-chain.
+   */
+  explorerApi?: string;
 }
 
 export const CHAINS: Record<string, ChainInfo> = {
-  ethereum: { id: "ethereum", kind: "evm", chainId: 1, nativeSymbol: "ETH", defaultRpc: "https://eth.llamarpc.com" },
-  optimism: { id: "optimism", kind: "evm", chainId: 10, nativeSymbol: "ETH", defaultRpc: "https://mainnet.optimism.io" },
+  ethereum: { id: "ethereum", kind: "evm", chainId: 1, nativeSymbol: "ETH", defaultRpc: "https://eth.llamarpc.com", explorerApi: "https://eth.blockscout.com" },
+  optimism: { id: "optimism", kind: "evm", chainId: 10, nativeSymbol: "ETH", defaultRpc: "https://mainnet.optimism.io", explorerApi: "https://optimism.blockscout.com" },
   bsc: { id: "bsc", kind: "evm", chainId: 56, nativeSymbol: "BNB", defaultRpc: "https://bsc-dataseed.binance.org" },
-  polygon: { id: "polygon", kind: "evm", chainId: 137, nativeSymbol: "POL", defaultRpc: "https://polygon-rpc.com" },
-  base: { id: "base", kind: "evm", chainId: 8453, nativeSymbol: "ETH", defaultRpc: "https://mainnet.base.org" },
-  arbitrum: { id: "arbitrum", kind: "evm", chainId: 42161, nativeSymbol: "ETH", defaultRpc: "https://arb1.arbitrum.io/rpc" },
+  polygon: { id: "polygon", kind: "evm", chainId: 137, nativeSymbol: "POL", defaultRpc: "https://polygon-rpc.com", explorerApi: "https://polygon.blockscout.com" },
+  base: { id: "base", kind: "evm", chainId: 8453, nativeSymbol: "ETH", defaultRpc: "https://mainnet.base.org", explorerApi: "https://base.blockscout.com" },
+  arbitrum: { id: "arbitrum", kind: "evm", chainId: 42161, nativeSymbol: "ETH", defaultRpc: "https://arb1.arbitrum.io/rpc", explorerApi: "https://arbitrum.blockscout.com" },
   avalanche: { id: "avalanche", kind: "evm", chainId: 43114, nativeSymbol: "AVAX", defaultRpc: "https://api.avax.network/ext/bc/C/rpc" },
   hyperevm: { id: "hyperevm", kind: "evm", chainId: 999, nativeSymbol: "HYPE", defaultRpc: "https://rpc.hyperliquid.xyz/evm" },
-  robinhood: { id: "robinhood", kind: "evm", chainId: 4663, nativeSymbol: "ETH", defaultRpc: "https://rpc.mainnet.chain.robinhood.com" },
-  plasma: { id: "plasma", kind: "evm", chainId: 9745, nativeSymbol: "XPL", defaultRpc: "https://rpc.plasma.to" },
+  robinhood: { id: "robinhood", kind: "evm", chainId: 4663, nativeSymbol: "ETH", defaultRpc: "https://rpc.mainnet.chain.robinhood.com", explorerApi: "https://robinhoodchain.blockscout.com" },
+  plasma: { id: "plasma", kind: "evm", chainId: 9745, nativeSymbol: "XPL", defaultRpc: "https://rpc.plasma.to", explorerApi: "https://plasma.blockscout.com" },
   monad: { id: "monad", kind: "evm", chainId: 143, nativeSymbol: "MON", defaultRpc: "https://rpc.monad.xyz" },
   solana: { id: "solana", kind: "svm", nativeSymbol: "SOL", defaultRpc: "https://api.mainnet-beta.solana.com" },
 };

@@ -292,9 +292,11 @@ registerTool(
     description:
       "Fetch native and token balances for a wallet, using the built-in per-chain public RPCs " +
       "(or configured overrides) — no external RPC lookup needed. Defaults to the configured " +
-      "funder wallet. Read-only; works without an API key. On Solana, omitting `tokens` lists " +
-      "every SPL token the wallet holds; on EVM chains, pass the ERC-20 addresses you want " +
-      "(only the native balance is returned otherwise).",
+      "funder wallet. Read-only; works without an API key. Omitting `tokens` lists every token " +
+      "the wallet holds: SPL tokens on Solana, and ERC-20s on EVM chains that have a block " +
+      "explorer configured (auto-discovered, then read live on-chain). Pass explicit `tokens` " +
+      "to query specific addresses, or on EVM chains without explorer support (only the native " +
+      "balance is returned otherwise).",
     annotations: { readOnlyHint: true, openWorldHint: true },
     inputSchema: {
       chain: chainEnum,
