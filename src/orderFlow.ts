@@ -8,6 +8,7 @@ import { svmAddressFromSecret, SvmSigner } from "./signing/svm.js";
 import {
   TERMINAL_STATUSES,
   type FlashGetOrderResponse,
+  type FlashOrder,
   type QuoteRequest,
   type QuoteResponse,
   type SubmitOrderRequest,
@@ -115,7 +116,7 @@ async function placeEvmOrder(
       ? { evmPermitTypedData: evm.permitTypedData, evmPermitSignature }
       : {}),
   };
-  const { orderId } = await client.submitOrder(submit);
+  const orderId = await submitOrderReconciled(client, submit, signer.address, steps);
   steps.push(`Submitted order ${orderId}`);
 
   const finalOrder = await maybePoll(client, orderId, quote, waitForFill, pollTimeoutSec, steps);
@@ -171,11 +172,96 @@ async function placeSvmOrder(
     ...(svm.deadline ? { svmDeadline: svm.deadline } : {}),
     ...(svmSponsoredDelegateTx ? { svmSponsoredDelegateTx } : {}),
   };
-  const { orderId } = await client.submitOrder(submit);
+  const orderId = await submitOrderReconciled(client, submit, signer.address, steps);
   steps.push(`Submitted order ${orderId}`);
 
   const finalOrder = await maybePoll(client, orderId, quote, waitForFill, pollTimeoutSec, steps);
   return { quote, orderId, steps, finalOrder };
+}
+
+// The Flash `/order` endpoint can create — and even fill — an order and STILL
+// respond with a 4xx (observed in the wild as `400 VALIDATION_ERROR: Request
+// validation failed`). A caller that treats the throw as a clean failure and
+// retries will double-spend: the first attempt already placed a real, filled
+// order. To make submit safe to call, we snapshot the order book first and, on
+// ANY submit error (API 4xx or a dropped-response network error — either can
+// leave an order created server-side), reconcile: if a new order matching this
+// request appeared, the submit really succeeded and we return its id instead of
+// surfacing the error. Only a genuine no-op failure re-throws.
+async function submitOrderReconciled(
+  client: FlashClient,
+  submit: SubmitOrderRequest,
+  funderAddress: string,
+  steps: string[],
+): Promise<string> {
+  const priorIds = await snapshotOrderIds(client, funderAddress);
+  try {
+    const { orderId } = await client.submitOrder(submit);
+    return orderId;
+  } catch (err) {
+    const recovered = await findCreatedOrder(client, submit, funderAddress, priorIds);
+    if (recovered) {
+      steps.push(
+        `⚠️ Submit responded with an error (${errText(err)}), but a matching order was created ` +
+          `server-side (${recovered.orderId}, status ${recovered.status}). The API misreported a ` +
+          `successful submit — treating as submitted. Do NOT retry; that would double-spend.`,
+      );
+      return recovered.orderId;
+    }
+    throw err;
+  }
+}
+
+const errText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+// Best-effort snapshot of existing order ids so a post-submit reconcile can tell
+// an order it created apart from ones that already existed. Returns null if the
+// list call fails — reconcile then falls back to matching any recent order.
+async function snapshotOrderIds(client: FlashClient, funderAddress: string): Promise<Set<string> | null> {
+  try {
+    const { orders } = await client.listOrders({ funderAddress, pageSize: 50 });
+    return new Set(orders.map((o) => o.orderId));
+  } catch {
+    return null;
+  }
+}
+
+function orderMatchesSubmit(order: FlashOrder, submit: SubmitOrderRequest): boolean {
+  const sameAddr = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
+  return (
+    order.side === submit.side &&
+    order.qty === submit.qty &&
+    order.orderType === submit.orderType &&
+    sameAddr(order.targetAsset.address, submit.targetAsset) &&
+    sameAddr(order.contraAsset.address, submit.contraAsset)
+  );
+}
+
+// Look for an order that this submit created despite erroring. The list endpoint
+// is eventually consistent and can lag a few seconds behind a fresh order, so we
+// poll briefly. A candidate must match the submit's assets/side/qty/type AND be
+// absent from the pre-submit snapshot, so we never mistake a pre-existing
+// identical order for one we just placed.
+async function findCreatedOrder(
+  client: FlashClient,
+  submit: SubmitOrderRequest,
+  funderAddress: string,
+  priorIds: Set<string> | null,
+): Promise<FlashOrder | undefined> {
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const { orders } = await client.listOrders({ funderAddress, pageSize: 50 });
+      // orders come back newest-first, so the first match is the most recent one.
+      const candidate = orders.find(
+        (o) => (priorIds ? !priorIds.has(o.orderId) : true) && orderMatchesSubmit(o, submit),
+      );
+      if (candidate) return candidate;
+    } catch {
+      // transient list failure — retry until the poll budget is exhausted
+    }
+    await sleep(2000);
+  }
+  return undefined;
 }
 
 async function maybePoll(
