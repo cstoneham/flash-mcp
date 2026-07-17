@@ -1,7 +1,7 @@
 {
   "name": "definitive-flash",
   "description": "Trade on the Definitive Flash API: quote, execute, and manage orders across 12 chains (EVM + Solana) directly from Claude Code.",
-  "version": "0.1.7",
+  "version": "0.1.10",
   "author": {
     "name": "Definitive"
   },
