@@ -69,3 +69,13 @@ export function resolveRpc(chainId: string, override?: string): string {
   if (fromConfig) return fromConfig;
   return getChain(chainId).defaultRpc;
 }
+
+/**
+ * True when the call would fall back to the chain's built-in public RPC — i.e.
+ * no per-call override, no env var, and nothing set via `flash_setup`. These
+ * public endpoints are heavily rate-limited, so callers surface a nudge to
+ * configure a real RPC for complete, reliable balance reads.
+ */
+export function usingDefaultRpc(chainId: string, override?: string): boolean {
+  return resolveRpc(chainId, override) === getChain(chainId).defaultRpc;
+}

@@ -23,6 +23,34 @@ export interface TokenBalance {
 const SPL_TOKEN_PROGRAM = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
 const SPL_TOKEN_2022_PROGRAM = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
 
+// Cap on simultaneous ERC-20 reads. A busy wallet can hold hundreds of tokens;
+// firing every read at once saturates a rate-limited public RPC, which both
+// times out the tool call and gets the whole batch throttled. 8 keeps us well
+// under public-RPC burst limits while still finishing quickly.
+const RPC_CONCURRENCY = 8;
+
+/**
+ * Map `worker` over `items` with at most `limit` in flight at once. Every task
+ * is awaited inside this function's Promise.all, so a rejection is always
+ * handled — it can never float free and crash the process as an
+ * unhandledRejection (which bypasses the tool-level try/catch entirely).
+ */
+async function mapPooled<T, R>(items: T[], limit: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function drain(): Promise<void> {
+    while (true) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i]);
+    }
+  }
+  const runners: Promise<void>[] = [];
+  for (let k = 0; k < Math.min(limit, items.length); k++) runners.push(drain());
+  await Promise.all(runners);
+  return results;
+}
+
 export async function fetchBalances(
   chainName: string,
   address: string,
@@ -46,16 +74,6 @@ async function evmBalances(
   if (!isAddress(address)) throw new Error(`"${address}" is not a valid EVM address`);
   const client = createPublicClient({ transport: http(rpc) });
 
-  const native = client.getBalance({ address }).then(
-    (wei): TokenBalance => ({
-      token: "native",
-      symbol: nativeSymbol,
-      balance: formatUnits(wei, 18),
-      raw: wei.toString(),
-      decimals: 18,
-    }),
-  );
-
   // Explicit `tokens` are read exactly as given (and back-filled with zeros so a
   // caller always gets a row per requested address). When none are passed we
   // enumerate the wallet's holdings from the chain's block explorer, then hide
@@ -72,28 +90,40 @@ async function evmBalances(
     }
   }
 
-  const erc20s = await Promise.all(
-    tokenList.map(async (token): Promise<TokenBalance | null> => {
-      if (!isAddress(token)) {
-        if (explicit) throw new Error(`"${token}" is not a valid ERC-20 address`);
-        return null; // ignore anything malformed the explorer hands back
-      }
-      const contract = { address: token, abi: erc20Abi } as const;
-      try {
-        const [raw, decimals, symbol] = await Promise.all([
-          client.readContract({ ...contract, functionName: "balanceOf", args: [address] }),
-          client.readContract({ ...contract, functionName: "decimals" }),
-          client.readContract({ ...contract, functionName: "symbol" }).catch(() => token.slice(0, 8)),
-        ]);
-        return { token, symbol, balance: formatUnits(raw, decimals), raw: raw.toString(), decimals };
-      } catch (err) {
-        if (explicit) throw err;
-        return null; // a discovered token that won't read cleanly — skip it
-      }
-    }),
-  );
+  const readToken = async (token: string): Promise<TokenBalance | null> => {
+    if (!isAddress(token)) {
+      if (explicit) throw new Error(`"${token}" is not a valid ERC-20 address`);
+      return null; // ignore anything malformed the explorer hands back
+    }
+    const contract = { address: token, abi: erc20Abi } as const;
+    try {
+      const [raw, decimals, symbol] = await Promise.all([
+        client.readContract({ ...contract, functionName: "balanceOf", args: [address] }),
+        client.readContract({ ...contract, functionName: "decimals" }),
+        client.readContract({ ...contract, functionName: "symbol" }).catch(() => token.slice(0, 8)),
+      ]);
+      return { token, symbol, balance: formatUnits(raw, decimals), raw: raw.toString(), decimals };
+    } catch (err) {
+      if (explicit) throw err;
+      return null; // a discovered token that won't read cleanly — skip it
+    }
+  };
 
-  const out = [await native, ...erc20s.filter((b): b is TokenBalance => b !== null)];
+  const readNative = async (): Promise<TokenBalance> => {
+    const wei = await client.getBalance({ address });
+    return { token: "native", symbol: nativeSymbol, balance: formatUnits(wei, 18), raw: wei.toString(), decimals: 18 };
+  };
+
+  // Read the native balance and every token through one bounded pool. Both are
+  // launched inside the same Promise.all, so neither can reject while unhandled
+  // — the earlier code left `native` floating across the long token await, and a
+  // rate-limited RPC rejecting it there crashed the whole server.
+  const [native, erc20s] = await Promise.all([
+    readNative(),
+    mapPooled(tokenList, RPC_CONCURRENCY, readToken),
+  ]);
+
+  const out = [native, ...erc20s.filter((b): b is TokenBalance => b !== null)];
   return dropZero ? out.filter((b) => b.token === "native" || b.raw !== "0") : out;
 }
 
