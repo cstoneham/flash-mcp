@@ -9,7 +9,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 import { fetchBalances } from "./balances.js";
-import { CHAIN_IDS } from "./chains.js";
+import { CHAIN_IDS, getChain, usingDefaultRpc } from "./chains.js";
 import { CONFIG_FILE_PATH, getConfig, setOrganization, setRpcOverrides } from "./config.js";
 import {
   funderAddressFor,
@@ -332,6 +332,20 @@ registerTool(
     if (balances.length > shown.length) {
       lines.push(
         `- …and ${balances.length - shown.length} more tokens — pass \`tokens\` to query specific mints`,
+      );
+    }
+    // The built-in public RPCs are heavily rate-limited: token auto-discovery
+    // fires many reads at once and they get throttled, so balances can come back
+    // incomplete or the call can time out. Tell the user plainly how to fix it.
+    if (usingDefaultRpc(args.chain, args.rpcUrl)) {
+      const nudge = getChain(args.chain).kind === "evm" && !(args.tokens && args.tokens.length)
+        ? "may be incomplete (token auto-discovery is throttled) or time out"
+        : "may be rate-limited or time out";
+      lines.push(
+        "",
+        `> ⚠️ Using the public **${args.chain}** RPC. Balances ${nudge}. ` +
+          `For complete, reliable results set a custom RPC (e.g. Alchemy/Infura):\n` +
+          `> \`flash_setup\` with \`rpc: { "${args.chain}": "https://…" }\`.`,
       );
     }
     return result(lines.join("\n"), balances.length <= 25 ? balances : undefined);
